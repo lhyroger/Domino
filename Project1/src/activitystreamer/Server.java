@@ -18,7 +18,7 @@ import activitystreamer.util.Settings;
 
 public class Server {
 	private static final Logger log = LogManager.getLogger();
-	
+//	test
 	private static void help(Options options){
 		String header = "An ActivityStream Server for Unimelb COMP90015\n\n";
 		String footer = "\ncontact aharwood@unimelb.edu.au for issues.";
