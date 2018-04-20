@@ -6,12 +6,22 @@ import java.util.ArrayList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import activitystreamer.util.Settings;
 
 public class Control extends Thread {
 	private static final Logger log = LogManager.getLogger();
 	private static ArrayList<Connection> connections;
+	private static ArrayList<Connection> clientConnections;
+	private static ArrayList<Connection> serverConnections;
+	//created users interface that is not functional, maybe use other method?
+	private static ArrayList<Users> registedUser; 
 	private static boolean term=false;
 	private static Listener listener;
 	
@@ -53,9 +63,104 @@ public class Control extends Thread {
 	 * Return true if the connection should close.
 	 */
 	public synchronized boolean process(Connection con,String msg){
-		return true;
+		boolean hasError;
+		String command;
+		command = getCommand(msg);
+		switch (command){
+			case "AUTHENTICATE":
+				hasError = processAuthenticate(con, command);
+				break;
+			case "LOGIN":
+				hasError = processLogin(con, command);
+				break;
+			case "REDIRECT":
+				hasError = processRedirect(con, command);
+				break;
+			case "LOGOUT":
+				hasError = true;
+				break;
+			case "ACTIVITY_MESSAGE":
+				hasError = processActivityMessage(con,command);
+				break;
+			case "SERVER_ANNOUNCE":
+				hasError = processServerAnnounce(con, command);
+				break;
+			case "ACTIVITY_BROADCAST":
+				hasError = processActivityBroadcast(con, command);
+				break;
+			case "REGISTER":
+				hasError = processRegister(con, command);
+				break;
+			case "LOCK_REQUEST":
+				hasError = processLockRequest(con, command);
+				break;
+			case "LOCK_DENIED":
+				hasError = processLockDenied(con, command);
+				break;
+			default:
+				hasError = true;
+				break;
+		}
+		return hasError;
 	}
 	
+	private boolean processLockDenied(Connection con, String command) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private boolean processLockRequest(Connection con, String command) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private boolean processRegister(Connection con, String command) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private boolean processActivityBroadcast(Connection con, String command) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private boolean processServerAnnounce(Connection con, String command) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private boolean processActivityMessage(Connection con, String command) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private boolean processRedirect(Connection con, String command) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private boolean processLogin(Connection con, String command) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private boolean processAuthenticate(Connection con, String command) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private String getCommand(String msg) {
+		//maybe use JSONObject instead
+		JSONObject json = null;
+		try {
+			json = (JSONObject) new JSONParser().parse(msg);
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return (String) json.get("command");
+	}
+
 	/*
 	 * The connection has been closed by the other party.
 	 */
