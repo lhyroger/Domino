@@ -68,34 +68,34 @@ public class Control extends Thread {
 		command = getCommand(msg);
 		switch (command){
 			case "AUTHENTICATE":
-				hasError = processAuthenticate(con, command);
+				hasError = processAuthenticate(con, msg);
 				break;
 			case "LOGIN":
-				hasError = processLogin(con, command);
+				hasError = processLogin(con, msg);
 				break;
 			case "REDIRECT":
-				hasError = processRedirect(con, command);
+				hasError = processRedirect(con, msg);
 				break;
 			case "LOGOUT":
 				hasError = true;
 				break;
 			case "ACTIVITY_MESSAGE":
-				hasError = processActivityMessage(con,command);
+				hasError = processActivityMessage(con,msg);
 				break;
 			case "SERVER_ANNOUNCE":
-				hasError = processServerAnnounce(con, command);
+				hasError = processServerAnnounce(con, msg);
 				break;
 			case "ACTIVITY_BROADCAST":
-				hasError = processActivityBroadcast(con, command);
+				hasError = processActivityBroadcast(con, msg);
 				break;
 			case "REGISTER":
-				hasError = processRegister(con, command);
+				hasError = processRegister(con, msg);
 				break;
 			case "LOCK_REQUEST":
-				hasError = processLockRequest(con, command);
+				hasError = processLockRequest(con, msg);
 				break;
 			case "LOCK_DENIED":
-				hasError = processLockDenied(con, command);
+				hasError = processLockDenied(con, msg);
 				break;
 			default:
 				hasError = true;
@@ -150,7 +150,6 @@ public class Control extends Thread {
 	}
 
 	private String getCommand(String msg) {
-		//maybe use JSONObject instead
 		JSONObject json = null;
 		try {
 			json = (JSONObject) new JSONParser().parse(msg);

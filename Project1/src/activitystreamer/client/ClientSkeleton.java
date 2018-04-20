@@ -50,6 +50,7 @@ public class ClientSkeleton extends Thread {
 	
 	
 	@SuppressWarnings("unchecked")
+	//sent from textFrame
 	public void sendActivityObject(JSONObject activityObj){
 		String msg;
 		msg = activityObj.toString();
@@ -76,20 +77,17 @@ public class ClientSkeleton extends Thread {
 			writer.println("You are logged out!");
 			
 		}else {//placeholder
-			writer.println(cmd);
-			JSONParser parser = new JSONParser();
-			JSONObject temp;
-			try {
-				temp = (JSONObject)parser.parse(cmd);
-				String temp2 = temp.get("command").toString();
-				log.error(temp2);
-				textFrame.setOutputText(temp);
-			} catch (ParseException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
 			
+			writer.println(cmd);
+			printTextFrame(cmd);			
 		}
+	}
+	
+	private void printTextFrame(String msg) {
+		
+			textFrame.setOutputText(toJson(msg));
+		
+		
 	}
 	
 	public void run(){
@@ -125,10 +123,80 @@ public class ClientSkeleton extends Thread {
 	}
 
 	
-	private void processResponse(String res) {
-		//if res
+	private void processResponse(String response) {
+		boolean hasError = true;
+		String cmd = getCommand(response);
+		switch (cmd){
+			case "INVALID.MESSAGE":
+				printTextFrame(response);
+				break;
+			case "AUTHTENTICATION_FAIL":
+				printTextFrame(response);
+				break;
+			case "LOGIN_SUCCESS":
+				hasError = false;
+				printTextFrame(response);
+				break;
+			case "LOGIN_FAILED":
+				printTextFrame(response);
+				break;
+			case "REDIRECT":
+				printTextFrame(response);
+				redirect(response);
+				break;
+			case "REGISTER_FAILED":
+				printTextFrame(response);
+				break;
+			case "REGISTER_SUCCESS":
+				hasError = false;
+				printTextFrame(response);
+				break;
+			case "LOCK_DENIED":
+				printTextFrame(response);
+				break;
+			case "ACTIVITY_BROADCAST":
+				hasError = false;
+				printTextFrame(response);
+				break;
+			default:
+				hasError = true;
+		}
+		if (hasError) {
+			closeSocket();
+			System.exit(-1);
+		}
 	}
 	
+	private void redirect(String response) {
+		JSONObject json = toJson(response);
+		Settings.setRemoteHostname((String)json.get("hostname"));
+		Settings.setRemotePort((int)json.get("port"));
+		closeSocket();
+		startConnection();
+	}
+
+	private JSONObject toJson(String msg) {
+		JSONParser parser = new JSONParser();
+		JSONObject json = null;
+		try {
+			json = (JSONObject)parser.parse(msg);
+		} catch (ParseException e) {
+			log.error("Cannot parser the massage");
+		}
+		return json;
+	}
+
+	private String getCommand(String response) {
+		JSONObject json = null;
+		try {
+			json = (JSONObject) new JSONParser().parse(response);
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return (String) json.get("command");
+	}
+
 	public void startConnection(){
 		String remoteHostname = Settings.getRemoteHostname();
 		int remotePort = Settings.getRemotePort();
