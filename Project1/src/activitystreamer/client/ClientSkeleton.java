@@ -23,6 +23,7 @@ import activitystreamer.util.Settings;
 public class ClientSkeleton extends Thread {
 	private static final Logger log = LogManager.getLogger();
 	private static ClientSkeleton clientSolution;
+	private static final String SECRET = "fmnmpp3ai91qb3gc2bvs14g3ue";
 	private TextFrame textFrame;
 	private BufferedReader reader;
 	private PrintWriter writer;
@@ -79,7 +80,7 @@ public class ClientSkeleton extends Thread {
 		}else {//placeholder
 			
 			writer.println(cmd);
-			printTextFrame(cmd);			
+			//printTextFrame(cmd);			
 		}
 	}
 	
@@ -91,33 +92,33 @@ public class ClientSkeleton extends Thread {
 	}
 	
 	public void run(){
-		String response = null;
-		try {
-			response = reader.readLine();
-		} catch (ConnectException|NullPointerException e) {
-			log.error("Connection Failure: " + e + " Disconnecting...");
-			
-		} catch (IOException e) {
-		
-			log.error("Cannot read reponse");
-		}
-		
-		log.info("should return response" + response);
-		processResponse(response);
-		
-		
-//		while(true) {
-//			String response;
-//			try {
-//				response = reader.readLine();
-//			} catch (IOException e) {
-//				// TODO Auto-generated catch block
-//				log.error("Cannot read response");
-//				break;
-//			}
-//			log.info(response);
-//			processResponse(response);
+//		String response = null;
+//		try {
+//			response = reader.readLine();
+//		} catch (ConnectException|NullPointerException e) {
+//			log.error("Connection Failure: " + e + " Disconnecting...");
+//			
+//		} catch (IOException e) {
+//		
+//			log.error("Cannot read reponse");
 //		}
+//		
+//		log.info("should return response" + response);
+//		processResponse(response);
+//		
+//		
+		while(true) {
+			String response;
+			try {
+				response = reader.readLine();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				log.error("Cannot read response");
+				break;
+			}
+			//log.info(response);
+			processResponse(response);
+		}
 		
 		
 	}
@@ -176,10 +177,9 @@ public class ClientSkeleton extends Thread {
 	}
 
 	private JSONObject toJson(String msg) {
-		JSONParser parser = new JSONParser();
 		JSONObject json = null;
 		try {
-			json = (JSONObject)parser.parse(msg);
+			json = (JSONObject) new JSONParser().parse(msg);
 		} catch (ParseException e) {
 			log.error("Cannot parser the massage");
 		}
@@ -206,7 +206,39 @@ public class ClientSkeleton extends Thread {
 			writer = new PrintWriter(socket.getOutputStream(),true);
 		} catch (IOException e) {
 			log.fatal("Connection failure: " + e);
+			System.exit(-1);
 		}
+		startProcess();
+	}
+
+	private void startProcess() {
+		String username = Settings.getUsername();
+		String secret = Settings.getSecret();
+		//register
+		if (!username.equals("anonymous") && secret == null) {
+			register(username);
+		}else { //login
+			login(username, secret);
+		}		
+	}
+
+	@SuppressWarnings("unchecked")
+	private void login(String username, String secret) {
+		JSONObject json = new JSONObject();
+		json.put("command", "LOGIN");
+		json.put("username", username);
+		json.put("secret", secret);
+		sendMessage(json.toJSONString());
+		
+	}
+
+	@SuppressWarnings("unchecked")
+	private void register(String username) {
+		JSONObject json = new JSONObject();
+		json.put("command", "REGISTER");
+		json.put("username", username);
+		json.put("secret", SECRET);
+		sendMessage(json.toJSONString());
 	}
 
 	
