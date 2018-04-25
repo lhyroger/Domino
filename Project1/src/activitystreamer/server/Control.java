@@ -26,6 +26,9 @@ public class Control extends Thread {
 	private static final String SECRET = "fmnmpp3ai91qb3gc2bvs14g3ue";
 	private static boolean term=false;
 	private static Listener listener;
+	private int count;
+	private String pendingRegisterUser;
+	private Connection pendingClientConnection;
 	
 	protected static Control control = null;
 	
@@ -99,6 +102,9 @@ public class Control extends Thread {
 			case "LOCK_DENIED":
 				hasError = processLockDenied(con, msg);
 				break;
+			case "LOCK_ALLOWED":
+				hasError = processLockAllowed(con, msg);
+				break;
 			default:
 				hasError = true;
 				break;
@@ -106,30 +112,84 @@ public class Control extends Thread {
 		return hasError;
 	}
 	
-	private boolean processAuthtenticationFail(Connection con, String msg) {
+private boolean processLockAllowed(Connection con, String message) {
+	if (!serverConnections.contains(con)) {
+		sendInvalidMessage(con, "Connection is not authenticated by server");
+		return true;
+	}
+	JSONObject json = toJson(con, message);
+	if (json.containsKey("username") && json.containsKey("secret")) {
+		String username = (String) json.get("username");
+		String secret = (String) json.get("secret");
+		
+		
+		if (pendingRegisterUser == username && count >0) {
+			count--;
+		}else if (count == 0) {
+			sendRegisterSuccess(con, "register success for " + username);
+		}
+	}else {
+		sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
+		return true;
+	}
+	return false;
+}
+
+	private boolean processAuthtenticationFail(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
 	private boolean processLockDenied(Connection con, String message) {
-		// TODO Auto-generated method stub
+		if (!serverConnections.contains(con)) {
+			sendInvalidMessage(con, "Connection is not authenticated by server");
+			return true;
+		}
+		JSONObject json = toJson(con, message);
+		if (json.containsKey("username") && json.containsKey("secret")) {
+			String username = (String) json.get("username");
+			String secret = (String) json.get("secret");
+			if (registeredUser.contains(username) && secret == SECRET) {
+				registeredUser.remove(username);
+			}
+			
+			if (pendingRegisterUser == username && count >0) {
+				count = 0;
+				sendRegisterFailed(pendingClientConnection,"the username already exist");
+				pendingClientConnection.closeCon();
+				connectionClosed(pendingClientConnection);
+				pendingClientConnection = null;
+				pendingRegisterUser = null;
+			}
+			sendLockDenied(con, username, secret);
+		}else {
+			sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
+			return true;
+		}
+		
+		
 		return false;
 	}
 
 	private boolean processLockRequest(Connection con, String message) {
 		if (!serverConnections.contains(con)) {
-			sendInvalidMessage(con, "Connection is not authenticated from server");
+			sendInvalidMessage(con, "Connection is not authenticated by server");
 			return true;
 		}
 		JSONObject json = toJson(con, message);
-		String username = (String) json.get("username");
-		String secret = (String) json.get("secret");
-		if (registeredUser.contains(username)) {
-			sendLockDenied(con, username, secret);
-			return true;
+		if (json.containsKey("username") && json.containsKey("secret")) {
+			String username = (String) json.get("username");
+			String secret = (String) json.get("secret");
+			if (registeredUser.contains(username)) {
+				sendLockDenied(con, username, secret);
+				return true;
+			}else {
+				registeredUser.add(username);
+				sendLockAllowed(con, username, secret);
+			}
 		}else {
-			registeredUser.add(username);
-			sendLockAllowed(con, username, secret);
+			sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
+			return true;
 		}
 		
 		return false;
@@ -182,8 +242,11 @@ public class Control extends Thread {
 					sendRegisterSuccess(con, "register success for " + username);
 					return false;
 				}else {
-					
+					registeredUser.add(username);
+					count = serverConnections.size();
+					pendingRegisterUser = username;
 					sendLockRequest(con, username, secret);
+					pendingClientConnection = con;
 				}
 			}
 		}else {
