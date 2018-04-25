@@ -24,6 +24,8 @@ public class Control extends Thread {
 	private static ArrayList<Users> registedUser; 
 	private static boolean term=false;
 	private static Listener listener;
+	private static JSONObject json = null;
+	
 	
 	protected static Control control = null;
 	
@@ -70,6 +72,8 @@ public class Control extends Thread {
 			case "AUTHENTICATE":
 				hasError = processAuthenticate(con, msg);
 				break;
+			case "AUTHENTICATION_FAIL":
+			    hasError = processAuthenticationFail(con, msg);
 			case "LOGIN":
 				hasError = processLogin(con, msg);
 				break;
@@ -104,22 +108,22 @@ public class Control extends Thread {
 		return hasError;
 	}
 	
-	private boolean processLockDenied(Connection con, String command) {
+	private boolean processLockDenied(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processLockRequest(Connection con, String command) {
+	private boolean processLockRequest(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processRegister(Connection con, String command) {
+	private boolean processRegister(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processActivityBroadcast(Connection con, String command) {
+	private boolean processActivityBroadcast(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
@@ -129,24 +133,47 @@ public class Control extends Thread {
 		return false;
 	}
 
-	private boolean processActivityMessage(Connection con, String command) {
+	private boolean processActivityMessage(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processRedirect(Connection con, String command) {
+	private boolean processRedirect(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processLogin(Connection con, String command) {
+	private boolean processLogin(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processAuthenticate(Connection con, String command) {
+	private boolean processAuthenticate(Connection con, String message) {
 		// TODO Auto-generated method stub
-		return false;
+	    String sec = toJson(message).get("sectet").toString();
+	     if (sec.equals(Settings.getSecret())) {
+	         log.debug("Success authentication.");
+              json = new JSONObject();
+              json.put("command","AUTHENTICATE");
+              json.put("secret",sec);
+              con.writeMsg(json.toJSONString());
+              return false;
+     	     }
+	     else {
+	         log.error("Wrong secret, connection closed");
+	         String info = "The supplied secret is incorrect: " + sec;
+	         json = new JSONObject();
+	         json.put("command", "AUTHENTICATION_FAIL");
+	         json.put("info", info);
+	         con.writeMsg(json.toJSONString());
+	         return true;
+	     }
+	}
+	
+	private boolean processAuthenticationFail(Connection con, String message) {
+	    String inf = toJson(message).get("info").toString();
+	    log.error(inf);
+	    return  true;
 	}
 
 	private String getCommand(String msg) {
@@ -160,6 +187,16 @@ public class Control extends Thread {
 		return (String) json.get("command");
 	}
 
+	private JSONObject toJson(String msg) {
+        JSONObject json = null;
+        try {
+            json = (JSONObject) new JSONParser().parse(msg);
+        } catch (ParseException e) {
+            log.error("Cannot parser the massage");
+        }
+        return json;
+    }
+	
 	/*
 	 * The connection has been closed by the other party.
 	 */

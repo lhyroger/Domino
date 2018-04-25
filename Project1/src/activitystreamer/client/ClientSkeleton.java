@@ -176,10 +176,9 @@ public class ClientSkeleton extends Thread {
 	}
 
 	private JSONObject toJson(String msg) {
-		JSONParser parser = new JSONParser();
 		JSONObject json = null;
 		try {
-			json = (JSONObject)parser.parse(msg);
+			json = (JSONObject) new JSONParser().parse(msg);
 		} catch (ParseException e) {
 			log.error("Cannot parser the massage");
 		}
