@@ -21,7 +21,8 @@ public class Control extends Thread {
 	private static ArrayList<Connection> clientConnections;
 	private static ArrayList<Connection> serverConnections;
 	//created users interface that is not functional, maybe use other method?
-	private static ArrayList<Users> registedUser; 
+	private static ArrayList<String> registeredUser;
+	private static final String SECRET = "fmnmpp3ai91qb3gc2bvs14g3ue";
 	private static boolean term=false;
 	private static Listener listener;
 	
@@ -65,7 +66,7 @@ public class Control extends Thread {
 	public synchronized boolean process(Connection con,String msg){
 		boolean hasError;
 		String command;
-		command = getCommand(msg);
+		command = getCommand(con, msg);
 		switch (command){
 			case "AUTHENTICATE":
 				hasError = processAuthenticate(con, msg);
@@ -104,62 +105,122 @@ public class Control extends Thread {
 		return hasError;
 	}
 	
-	private boolean processLockDenied(Connection con, String command) {
+	private boolean processLockDenied(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processLockRequest(Connection con, String command) {
+	private boolean processLockRequest(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processRegister(Connection con, String command) {
+	private boolean processRegister(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processActivityBroadcast(Connection con, String command) {
+	private boolean processActivityBroadcast(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processServerAnnounce(Connection con, String command) {
+	private boolean processServerAnnounce(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processActivityMessage(Connection con, String command) {
+	private boolean processActivityMessage(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processRedirect(Connection con, String command) {
+	private boolean processRedirect(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processLogin(Connection con, String command) {
+	private boolean processLogin(Connection con, String message) {
+		JSONObject json = toJson(con, message);
+		if (json.containsKey("username") && json.containsKey("secret")) {
+			String username = (String) json.get("username");
+			String secret = (String) json.get("secret");
+			//login as anonymous
+			if (username.equals("anonymous")) {
+				if (secret == null) {
+					sendLoginSuccess(con, username);
+				}else {
+					sendInvalidMessage(con, "Trying login as a anonymous with a secret.");
+					return true;
+				}
+			//login as user
+			}else {
+				//has the username
+				if (registeredUser.contains(username)) {
+					if (secret.equals(SECRET)) {
+						sendLoginSuccess(con, username);
+					}else {
+						sendLoginFailed(con, "attempt to login with wrong secret");
+						return true;
+					}
+				//!has the username
+				}else {
+					sendLoginFailed(con, "username does not exist");
+					return true;
+				}
+			}
+		}else {
+			sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
+		}
+		return false;
+	}
+
+	@SuppressWarnings("unchecked")
+	private void sendLoginFailed(Connection con, String failed) {
+		JSONObject js = new JSONObject();
+		js.put("command", "LOGIN_FAILED");
+		js.put("info", failed);
+		
+	}
+
+	@SuppressWarnings("unchecked")
+	private void sendInvalidMessage(Connection con, String info) {
+		JSONObject js = new JSONObject();
+		js.put("command", "INVALID_MESSAGE");
+		js.put("info", info);
+		
+	}
+
+	@SuppressWarnings("unchecked")
+	private void sendLoginSuccess(Connection con, String username) {
+		JSONObject js = new JSONObject();
+		js.put("command", "LOGIN_SUCCESS");
+		js.put("info", "logged in as user " + username);
+		con.writeMsg(js.toJSONString());
+		log.info("LOGIN_SUCCESS sent");
+	}
+
+	private boolean processAuthenticate(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	private boolean processAuthenticate(Connection con, String command) {
-		// TODO Auto-generated method stub
-		return false;
+	private String getCommand(Connection con, String msg) {
+		JSONObject json = toJson(con, msg);
+		return (String) json.get("command");
 	}
 
-	private String getCommand(String msg) {
+	private JSONObject toJson(Connection con, String msg) {
 		JSONObject json = null;
 		try {
 			json = (JSONObject) new JSONParser().parse(msg);
 		} catch (ParseException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			log.error("Cannot parser the message");
+			sendInvalidMessage(con, "cannot parser the message");
 		}
-		return (String) json.get("command");
+		return json;
 	}
-
+	
 	/*
 	 * The connection has been closed by the other party.
 	 */
