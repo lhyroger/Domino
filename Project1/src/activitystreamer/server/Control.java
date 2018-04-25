@@ -128,6 +128,7 @@ private boolean processLockAllowed(Connection con, String message) {
 		}else if (count == 0) {
 			sendRegisterSuccess(con, "register success for " + username);
 		}
+		sendLockAllowed(con, username, secret);
 	}else {
 		sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
 		return true;
