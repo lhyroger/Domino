@@ -25,6 +25,8 @@ public class Control extends Thread {
 	private static final String SECRET = "fmnmpp3ai91qb3gc2bvs14g3ue";
 	private static boolean term=false;
 	private static Listener listener;
+	private static JSONObject json = null;
+	
 	
 	protected static Control control = null;
 	
@@ -71,6 +73,8 @@ public class Control extends Thread {
 			case "AUTHENTICATE":
 				hasError = processAuthenticate(con, msg);
 				break;
+			case "AUTHENTICATION_FAIL":
+			    hasError = processAuthenticationFail(con, msg);
 			case "LOGIN":
 				hasError = processLogin(con, msg);
 				break;
@@ -141,6 +145,7 @@ public class Control extends Thread {
 	}
 
 	private boolean processLogin(Connection con, String message) {
+
 		JSONObject json = toJson(con, message);
 		if (json.containsKey("username") && json.containsKey("secret")) {
 			String username = (String) json.get("username");
@@ -200,9 +205,33 @@ public class Control extends Thread {
 		log.info("LOGIN_SUCCESS sent");
 	}
 
+
 	private boolean processAuthenticate(Connection con, String message) {
 		// TODO Auto-generated method stub
-		return false;
+	    String sec = toJson(message).get("sectet").toString();
+	     if (sec.equals(Settings.getSecret())) {
+	         log.debug("Success authentication.");
+              json = new JSONObject();
+              json.put("command","AUTHENTICATE");
+              json.put("secret",sec);
+              con.writeMsg(json.toJSONString());
+              return false;
+     	     }
+	     else {//test
+	         log.error("Wrong secret, connection closed");
+	         String info = "The supplied secret is incorrect: " + sec;
+	         json = new JSONObject();
+	         json.put("command", "AUTHENTICATION_FAIL");
+	         json.put("info", info);
+	         con.writeMsg(json.toJSONString());
+	         return true;
+	     }
+	}
+	
+	private boolean processAuthenticationFail(Connection con, String message) {
+	    String inf = toJson(message).get("info").toString();
+	    log.error(inf);
+	    return  true;
 	}
 
 	private String getCommand(Connection con, String msg) {
@@ -220,6 +249,18 @@ public class Control extends Thread {
 		}
 		return json;
 	}
+
+
+	private JSONObject toJson(String msg) {
+        JSONObject json = null;
+        try {
+            json = (JSONObject) new JSONParser().parse(msg);
+        } catch (ParseException e) {
+            log.error("Cannot parser the massage");
+        }
+        return json;
+    }
+
 	
 	/*
 	 * The connection has been closed by the other party.
