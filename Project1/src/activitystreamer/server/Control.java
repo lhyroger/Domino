@@ -22,6 +22,7 @@ public class Control extends Thread {
 	private static ArrayList<Connection> serverConnections;
 	//created users interface that is not functional, maybe use other method?
 	private static ArrayList<String> registeredUser;
+	private static ArrayList<String> serverAnnounceInfo;
 	private static final String SECRET = "fmnmpp3ai91qb3gc2bvs14g3ue";
 	private static boolean term=false;
 	private static Listener listener;
@@ -75,7 +76,7 @@ public class Control extends Thread {
 				hasError = processLogin(con, msg);
 				break;
 			case "REDIRECT":
-				hasError = processRedirect(con, msg);
+				hasError = processAuthtenticationFail(con, msg);
 				break;
 			case "LOGOUT":
 				hasError = true;
@@ -105,19 +106,122 @@ public class Control extends Thread {
 		return hasError;
 	}
 	
+	private boolean processAuthtenticationFail(Connection con, String msg) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
 	private boolean processLockDenied(Connection con, String message) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
 	private boolean processLockRequest(Connection con, String message) {
-		// TODO Auto-generated method stub
+		if (!serverConnections.contains(con)) {
+			sendInvalidMessage(con, "Connection is not authenticated from server");
+			return true;
+		}
+		JSONObject json = toJson(con, message);
+		String username = (String) json.get("username");
+		String secret = (String) json.get("secret");
+		if (registeredUser.contains(username)) {
+			sendLockDenied(con, username, secret);
+			return true;
+		}else {
+			registeredUser.add(username);
+			sendLockAllowed(con, username, secret);
+		}
+		
 		return false;
 	}
 
+	@SuppressWarnings("unchecked")
+	private void sendLockAllowed(Connection con, String username, String secret) {
+		for (Connection connection: serverConnections) {
+			if (connection != con) {
+				JSONObject js = new JSONObject();
+				js.put("command", "LOCK_ALLOWED");
+				js.put("username", username);
+				js.put("secret", secret);
+				con.writeMsg(js.toJSONString());
+				log.info("LOCK_ALLOWED sent");
+			}
+		}
+		
+	}
+
+	@SuppressWarnings("unchecked")
+	private void sendLockDenied(Connection con, String username, String secret) {
+		for (Connection connection: serverConnections) {
+			if (connection != con) {
+				JSONObject js = new JSONObject();
+				js.put("command", "LOCK_DENIED");
+				js.put("username", username);
+				js.put("secret", secret);
+				con.writeMsg(js.toJSONString());
+				log.info("LOCK_DENIED sent");
+			}
+		}
+		
+	}
+
 	private boolean processRegister(Connection con, String message) {
-		// TODO Auto-generated method stub
+		JSONObject json = toJson(con, message);
+		if (json.containsKey("username") && json.containsKey("secret")) {
+			String username = (String) json.get("username");
+			String secret = (String) json.get("secret");
+			if (clientConnections.contains(con)) {
+				sendInvalidMessage(con, "the user has already registered");
+			}
+			if (registeredUser.contains(username)) {
+				sendRegisterFailed(con, username + " is already registered with the system");
+				return true;
+			}else {
+				if (serverConnections.size()==0) {
+					registeredUser.add(username);
+					sendRegisterSuccess(con, "register success for " + username);
+					return false;
+				}else {
+					
+					sendLockRequest(con, username, secret);
+				}
+			}
+		}else {
+			sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
+			return true;
+		}
 		return false;
+	}
+
+	@SuppressWarnings("unchecked")
+	private void sendLockRequest(Connection con, String username, String secret) {
+		JSONObject js = new JSONObject();
+		js.put("command", "LOCK_REQUEST");
+		js.put("username", username);
+		js.put("secret", secret);
+		con.writeMsg(js.toJSONString());
+		log.info("LOCK_REQUEST sent");
+		
+	}
+
+	@SuppressWarnings("unchecked")
+	private void sendRegisterSuccess(Connection con, String info) {
+		JSONObject js = new JSONObject();
+		js.put("command", "REGISTER_SUCCESS");
+		js.put("info", info);
+		con.writeMsg(js.toJSONString());
+		log.info("REGISTER_SUCCESS");
+		
+	}
+
+	@SuppressWarnings("unchecked")
+	private void sendRegisterFailed(Connection con, String info) {
+		JSONObject js = new JSONObject();
+		js.put("command", "REGISTER_FAILED");
+		js.put("info", info);
+		con.writeMsg(js.toJSONString());
+		log.info("REGISTER_FAILED sent");
+		
 	}
 
 	private boolean processActivityBroadcast(Connection con, String message) {
@@ -135,10 +239,7 @@ public class Control extends Thread {
 		return false;
 	}
 
-	private boolean processRedirect(Connection con, String message) {
-		// TODO Auto-generated method stub
-		return false;
-	}
+	
 
 	private boolean processLogin(Connection con, String message) {
 		JSONObject json = toJson(con, message);
@@ -149,6 +250,7 @@ public class Control extends Thread {
 			if (username.equals("anonymous")) {
 				if (secret == null) {
 					sendLoginSuccess(con, username);
+					return redirect(con);
 				}else {
 					sendInvalidMessage(con, "Trying login as a anonymous with a secret.");
 					return true;
@@ -159,6 +261,7 @@ public class Control extends Thread {
 				if (registeredUser.contains(username)) {
 					if (secret.equals(SECRET)) {
 						sendLoginSuccess(con, username);
+						return redirect(con);
 					}else {
 						sendLoginFailed(con, "attempt to login with wrong secret");
 						return true;
@@ -171,6 +274,24 @@ public class Control extends Thread {
 			}
 		}else {
 			sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
+			return true;
+		}
+	}
+
+	@SuppressWarnings("unchecked")
+	private boolean redirect(Connection con) {
+		for (String info: serverAnnounceInfo) {
+			JSONObject json = toJson(con, info);
+			int load = (int) json.get("load");
+			if(clientConnections.size() - load >= 2) {
+				JSONObject js = new JSONObject();
+				js.put("command", "REDIRECT");
+				js.put("hostname", json.get("hostname"));
+				js.put("port", json.get("port"));
+				con.writeMsg(js.toJSONString());
+				log.info("REDIRECT sent, closing connection...");
+				return true;
+			}
 		}
 		return false;
 	}
@@ -180,7 +301,8 @@ public class Control extends Thread {
 		JSONObject js = new JSONObject();
 		js.put("command", "LOGIN_FAILED");
 		js.put("info", failed);
-		
+		con.writeMsg(js.toJSONString());
+		log.info("LOGIN_FAILED sent");
 	}
 
 	@SuppressWarnings("unchecked")
@@ -188,7 +310,8 @@ public class Control extends Thread {
 		JSONObject js = new JSONObject();
 		js.put("command", "INVALID_MESSAGE");
 		js.put("info", info);
-		
+		con.writeMsg(js.toJSONString());
+		log.info("INVALID_MESSAGE sent");
 	}
 
 	@SuppressWarnings("unchecked")
@@ -216,7 +339,7 @@ public class Control extends Thread {
 			json = (JSONObject) new JSONParser().parse(msg);
 		} catch (ParseException e) {
 			log.error("Cannot parser the message");
-			sendInvalidMessage(con, "cannot parser the message");
+			sendInvalidMessage(con, "JSON parse error while parsing message");
 		}
 		return json;
 	}

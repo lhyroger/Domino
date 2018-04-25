@@ -181,7 +181,7 @@ public class ClientSkeleton extends Thread {
 		try {
 			json = (JSONObject) new JSONParser().parse(msg);
 		} catch (ParseException e) {
-			log.error("Cannot parser the massage");
+			log.error("JSON parse error while parsing message");
 		}
 		return json;
 	}
