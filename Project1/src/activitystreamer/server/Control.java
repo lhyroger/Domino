@@ -159,7 +159,7 @@ public class Control extends Thread {
               con.writeMsg(json.toJSONString());
               return false;
      	     }
-	     else {
+	     else {//test
 	         log.error("Wrong secret, connection closed");
 	         String info = "The supplied secret is incorrect: " + sec;
 	         json = new JSONObject();
