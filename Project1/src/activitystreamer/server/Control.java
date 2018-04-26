@@ -18,19 +18,16 @@ import activitystreamer.util.Settings;
 
 public class Control extends Thread {
 	private static final Logger log = LogManager.getLogger();
-	private static ArrayList<Connection> connections;
-	private static ArrayList<Connection> clientConnections;
-	private static ArrayList<Connection> serverConnections;
+	private static ArrayList<Connection> clientConnections = new ArrayList<Connection>();
+	private static ArrayList<Connection> serverConnections = new ArrayList<Connection>();
 	//created users interface that is not functional, maybe use other method?
-	//private static ArrayList<String> registeredUser;
-	private static HashMap<String,String> registeredUser;	
-	private static ArrayList<String> serverAnnounceInfo;
-	//private static final String SECRET = "fmnmpp3ai91qb3gc2bvs14g3ue";
+	private static HashMap<String, String> registeredUser = new HashMap<String, String>();
+	private static final String ServerSECRET = "fmnmpp3ai91qb3gc2bvs14g3ue";
 	private static boolean term=false;
 	private static Listener listener;
-	private int count;
-	private String pendingRegisterUser;
-	private Connection pendingClientConnection;
+	private String id;
+	private static ArrayList<String> serverAnnounceInfo = new ArrayList<String>();
+
 	
 	protected static Control control = null;
 	
@@ -43,14 +40,13 @@ public class Control extends Thread {
 	
 	public Control() {
 		// initialize the connections array
-		connections = new ArrayList<Connection>();
-		clientConnections = new ArrayList<Connection>();
-		serverConnections = new ArrayList<Connection>();
-		registeredUser = new HashMap<String,String>();
-		serverAnnounceInfo = new ArrayList<String>();
-		pendingRegisterUser = null;
-		count = 0;
-		pendingClientConnection = null;
+		id = Settings.nextSecret();
+		if(Settings.getRemoteHostname() == null) {
+		    log.info("Lack of remote host information.");	
+		    }
+		else {
+		    initiateConnection();
+		}
 		// start a listener
 		try {
 			listener = new Listener();
@@ -84,11 +80,14 @@ public class Control extends Thread {
 			case "AUTHENTICATE":
 				hasError = processAuthenticate(con, msg);
 				break;
+			case "AUTHENTICATION_FAIL":
+			    hasError = true;
+			    break;
 			case "LOGIN":
 				hasError = processLogin(con, msg);
 				break;
 			case "REDIRECT":
-				hasError = processAuthtenticationFail(con, msg);
+				hasError = processRedirect(con, msg);
 				break;
 			case "LOGOUT":
 				hasError = true;
@@ -111,9 +110,6 @@ public class Control extends Thread {
 			case "LOCK_DENIED":
 				hasError = processLockDenied(con, msg);
 				break;
-			case "LOCK_ALLOWED":
-				hasError = processLockAllowed(con, msg);
-				break;
 			default:
 				hasError = true;
 				break;
@@ -121,205 +117,114 @@ public class Control extends Thread {
 		return hasError;
 	}
 	
-private boolean processLockAllowed(Connection con, String message) {
-	if (!serverConnections.contains(con)) {
-		sendInvalidMessage(con, "Connection is not authenticated by server");
-		return true;
-	}
-	JSONObject json = toJson(con, message);
-	if (json.containsKey("username") && json.containsKey("secret")) {
-		String username = (String) json.get("username");
-		String secret = (String) json.get("secret");
-		
-		
-		if (pendingRegisterUser.equals(username) && count >0) {
-			count--;
-		}else if (count == 0) {
-			sendRegisterSuccess(con, "register success for " + username);
-		}
-		sendLockAllowed(con, username, secret);
-	}else {
-		sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
-		return true;
-	}
-	return false;
-}
-
-	private boolean processAuthtenticationFail(Connection con, String message) {
-		// TODO Auto-generated method stub
-		return false;
-	}
-
 	private boolean processLockDenied(Connection con, String message) {
-		if (!serverConnections.contains(con)) {
-			sendInvalidMessage(con, "Connection is not authenticated by server");
-			return true;
-		}
-		JSONObject json = toJson(con, message);
-		if (json.containsKey("username") && json.containsKey("secret")) {
-			String username = (String) json.get("username");
-			String secret = (String) json.get("secret");
-			if (registeredUser.containsKey(username)) {
-				if (registeredUser.get(username).equals(secret)) {
-					registeredUser.remove(username);
-				}
-			}
-//			if (registeredUser.contains(username) && secret.equals(SECRET)) {
-//				registeredUser.remove(username);
-//			}
-			
-			if (pendingRegisterUser.equals(username) && count >0) {
-				count = 0;
-				sendRegisterFailed(pendingClientConnection,"the username already exist");
-				pendingClientConnection.closeCon();
-				connectionClosed(pendingClientConnection);
-				pendingClientConnection = null;
-				pendingRegisterUser = null;
-			}
-			sendLockDenied(con, username, secret);
-		}else {
-			sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
-			return true;
-		}
-		
-		
+		// TODO Auto-generated method stub
 		return false;
 	}
 
 	private boolean processLockRequest(Connection con, String message) {
-		if (!serverConnections.contains(con)) {
-			sendInvalidMessage(con, "Connection is not authenticated by server");
-			return true;
-		}
-		JSONObject json = toJson(con, message);
-		if (json.containsKey("username") && json.containsKey("secret")) {
-			String username = (String) json.get("username");
-			String secret = (String) json.get("secret");
-			if (registeredUser.containsKey(username)) {
-				sendLockDenied(con, username, secret);
-				return true;
-			}else {
-				registeredUser.put(username,secret);
-				sendLockAllowed(con, username, secret);
-			}
-		}else {
-			sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
-			return true;
-		}
-		
+		// TODO Auto-generated method stub
 		return false;
-	}
-
-	@SuppressWarnings("unchecked")
-	private void sendLockAllowed(Connection con, String username, String secret) {
-		for (Connection connection: serverConnections) {
-			if (connection != con) {
-				JSONObject js = new JSONObject();
-				js.put("command", "LOCK_ALLOWED");
-				js.put("username", username);
-				js.put("secret", secret);
-				con.writeMsg(js.toJSONString());
-				log.info("LOCK_ALLOWED sent");
-			}
-		}
-		
-	}
-
-	@SuppressWarnings("unchecked")
-	private void sendLockDenied(Connection con, String username, String secret) {
-		for (Connection connection: serverConnections) {
-			if (connection != con) {
-				JSONObject js = new JSONObject();
-				js.put("command", "LOCK_DENIED");
-				js.put("username", username);
-				js.put("secret", secret);
-				con.writeMsg(js.toJSONString());
-				log.info("LOCK_DENIED sent");
-			}
-		}
-		
 	}
 
 	private boolean processRegister(Connection con, String message) {
-		JSONObject json = toJson(con, message);
-		if (json.containsKey("username") && json.containsKey("secret")) {
-			String username = (String) json.get("username");
-			String secret = (String) json.get("secret");
-			if (clientConnections.contains(con)) {
-				sendInvalidMessage(con, "the user has already registered");
-			}
-			if (registeredUser.containsKey(username)) {
-				sendRegisterFailed(con, username + " is already registered with the system");
-				return true;
-			}else {
-				if (serverConnections.size()==0) {
-					registeredUser.put(username, secret);
-					sendRegisterSuccess(con, "register success for " + username + " with secret: " + secret);
-					return false;
-				}else {
-					registeredUser.put(username, secret);
-					count = serverConnections.size();
-					pendingRegisterUser = username;
-					sendLockRequest(con, username, secret);
-					pendingClientConnection = con;
-				}
-			}
-		}else {
-			sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
-			return true;
-		}
+		// TODO Auto-generated method stub
 		return false;
-	}
-
-	@SuppressWarnings("unchecked")
-	private void sendLockRequest(Connection con, String username, String secret) {
-		JSONObject js = new JSONObject();
-		js.put("command", "LOCK_REQUEST");
-		js.put("username", username);
-		js.put("secret", secret);
-		con.writeMsg(js.toJSONString());
-		log.info("LOCK_REQUEST sent");
-		
-	}
-
-	@SuppressWarnings("unchecked")
-	private void sendRegisterSuccess(Connection con, String info) {
-		JSONObject js = new JSONObject();
-		js.put("command", "REGISTER_SUCCESS");
-		js.put("info", info);
-		con.writeMsg(js.toJSONString());
-		log.info("REGISTER_SUCCESS");
-		
-	}
-
-	@SuppressWarnings("unchecked")
-	private void sendRegisterFailed(Connection con, String info) {
-		JSONObject js = new JSONObject();
-		js.put("command", "REGISTER_FAILED");
-		js.put("info", info);
-		con.writeMsg(js.toJSONString());
-		log.info("REGISTER_FAILED sent");
-		
 	}
 
 	private boolean processActivityBroadcast(Connection con, String message) {
 		// TODO Auto-generated method stub
+	    log.info("Activity broadcast message received from prot: " + con.getSocket().getPort());
+        if(!validActivityMsg(con,message)) {
+            return true;
+        }
+        broadcastToAllClient(message);
+        for(Connection connection: serverConnections) {
+            if(!connection.equals(con)) {
+                connection.writeMsg(message);
+            }
+        }
 		return false;
 	}
 
 	private boolean processServerAnnounce(Connection con, String message) {
 		// TODO Auto-generated method stub
+	    log.info("Server announce recieved");
+	    if(!serverConnections.contains(con)) {
+	        //if the message is received from an unauthenticated server
+	        log.info("Announce failed");
+	        sendInvalidMessage(con, "this server isn't authenticated");
+	        return true;
+	    }
+	    JSONObject js = toJson(con, message);
+	    if(!(js.containsKey("id") && js.containsKey("load") && js.containsKey("hostname") && js.containsKey("port"))) {
+	        //if the information is insufficient
+	        log.info("Announce failed");
+	        sendInvalidMessage(con,"insufficient information");
+	        return true;
+	    }
+	    
+	    for(int i = 0; i<serverAnnounceInfo.size(); i++) {
+	        JSONObject js1 = toJson(con, serverAnnounceInfo.get(i));
+	        if(js1.get("id").toString() != js.get("id").toString()) {
+	            serverAnnounceInfo.add(message);
+	        }
+	        else {
+	            serverAnnounceInfo.set(i, message);
+	        }
+	    }
+	    //inform others to update list
+	    broadcastToOtherServer(con,message);
+	    
 		return false;
 	}
 
 	private boolean processActivityMessage(Connection con, String message) {
 		// TODO Auto-generated method stub
+	  log.info("Activity message received from port: " +con.getSocket().getPort());
+	  if(!validActivityMsg(con, message)) {
+	      return true;
+	  }
+	  JSONObject js = toJson(con, message);
+	  String usrname = js.get("username").toString();
+	  String sec = js.get("secret").toString();
+	  JSONObject jso = toJson(con, js.get("activity").toString());
+      String usern = jso.get("authenticated_user").toString();
+	  if(!clientConnections.contains(con) || !registeredUser.containsKey(usrname) || !registeredUser.get(usrname).equals(sec) || !registeredUser.containsKey(usern)) {
+	      //if the user is not anoymous or the username and secret do not match the logged in the user
+	      //or if the user has not logged in yet
+	      log.info("Invalid acivity message received, authentication failed message sent");
+	      sendAuthenticationFail(con, "username and secret do not match");
+	      return true;
+	  }
+	  else {
+	      log.debug("Broadcast activity message received from client");
+	      JSONObject brodj = new JSONObject();
+	      String act = js.get("activity").toString();
+	      brodj.put("command", "ACTIVITY_BROADCAST");
+	      brodj.put("activity", act);
+	      String broadac = brodj.toJSONString();
+	      broadcastToOtherServer(con, broadac);
+	  }
+		return false;
+	}
+	
+	private boolean validActivityMsg(Connection con, String message) {
+	    JSONObject js = toJson(con, message);
+	    if(!js.containsKey("activity")) {
+	        sendInvalidMessage(con, "the received message did not contain activity");
+	        return false;
+	    }
+	    return true;
+	}
+
+	private boolean processRedirect(Connection con, String message) {
+		// TODO Auto-generated method stub
 		return false;
 	}
 
-	
-
 	private boolean processLogin(Connection con, String message) {
+
 		JSONObject json = toJson(con, message);
 		if (json.containsKey("username") && json.containsKey("secret")) {
 			String username = (String) json.get("username");
@@ -328,7 +233,6 @@ private boolean processLockAllowed(Connection con, String message) {
 			if (username.equals("anonymous")) {
 				if (secret == null) {
 					sendLoginSuccess(con, username);
-					return redirect(con);
 				}else {
 					sendInvalidMessage(con, "Trying login as a anonymous with a secret.");
 					return true;
@@ -338,7 +242,7 @@ private boolean processLockAllowed(Connection con, String message) {
 				//has the username
 				if (registeredUser.containsKey(username)) {
 					if (registeredUser.get(username).equals(secret)) {
-						sendLoginSuccess(con, username);						return redirect(con);
+						sendLoginSuccess(con, username);
 					}else {
 						sendLoginFailed(con, "attempt to login with wrong secret");
 						return true;
@@ -351,24 +255,6 @@ private boolean processLockAllowed(Connection con, String message) {
 			}
 		}else {
 			sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
-			return true;
-		}
-	}
-
-	@SuppressWarnings("unchecked")
-	private boolean redirect(Connection con) {
-		for (String info: serverAnnounceInfo) {
-			JSONObject json = toJson(con, info);
-			int load = (int) json.get("load");
-			if(clientConnections.size() - load >= 2) {
-				JSONObject js = new JSONObject();
-				js.put("command", "REDIRECT");
-				js.put("hostname", json.get("hostname"));
-				js.put("port", json.get("port"));
-				con.writeMsg(js.toJSONString());
-				log.info("REDIRECT sent, closing connection...");
-				return true;
-			}
 		}
 		return false;
 	}
@@ -379,7 +265,6 @@ private boolean processLockAllowed(Connection con, String message) {
 		js.put("command", "LOGIN_FAILED");
 		js.put("info", failed);
 		con.writeMsg(js.toJSONString());
-		log.info("LOGIN_FAILED sent");
 	}
 
 	@SuppressWarnings("unchecked")
@@ -388,7 +273,6 @@ private boolean processLockAllowed(Connection con, String message) {
 		js.put("command", "INVALID_MESSAGE");
 		js.put("info", info);
 		con.writeMsg(js.toJSONString());
-		log.info("INVALID_MESSAGE sent");
 	}
 
 	@SuppressWarnings("unchecked")
@@ -400,10 +284,53 @@ private boolean processLockAllowed(Connection con, String message) {
 		log.info("LOGIN_SUCCESS sent");
 	}
 
+
 	private boolean processAuthenticate(Connection con, String message) {
 		// TODO Auto-generated method stub
-		return false;
+	    JSONObject json = toJson(con, message);
+	    if(serverConnections.contains(con)) {//if the connection is authenticated
+	        log.info("Authentication failed");
+	        sendInvalidMessage(con, "this connection is already authenticated");
+	        return true;
+	    }
+	    
+        if ( ! json.containsKey("secret")) {
+           //when the secret doesn't exist, authentication fails
+            log.info("Authentication failed");
+            sendInvalidMessage(con, "lack of secret");
+            clientConnections.remove(con);
+            return true;
+        }
+        else {
+            //when the secret exists, to judge if the secret corrects, then to judge if the connection exists
+            String sec = json.get("secret").toString();
+	         if (sec.equals(ServerSECRET)) {//when the secret is correct
+	           //when the connection doesn't exist, add to the server connections. 
+	             clientConnections.remove(con);
+	             serverConnections.add(con);
+                 return false;
+             }
+	        else {//when the secret is incorrect
+	        	log.info("The secret is incorrect");
+	            clientConnections.remove(con);
+	            String str = "the supplied secret is incorrect : " + sec;
+	            sendAuthenticationFail(con, str);
+	            return true;
+	         }
+	      }
 	}
+
+	
+	private void sendAuthenticationFail(Connection con, String str) {
+        // TODO Auto-generated method stub
+        JSONObject js = new JSONObject();
+        js.put("command", "AUTHENTICATION_FAIL");
+        js.put("info", str);
+        con.writeMsg(js.toJSONString());
+	    con.closeCon();
+    }
+
+	
 
 	private String getCommand(Connection con, String msg) {
 		JSONObject json = toJson(con, msg);
@@ -417,16 +344,25 @@ private boolean processLockAllowed(Connection con, String message) {
 		} catch (ParseException e) {
 			log.error("Cannot parser the message");
 			sendInvalidMessage(con, "JSON parse error while parsing message");
-			con.closeCon();
 		}
+		
 		return json;
 	}
+
+
 	
 	/*
+
 	 * The connection has been closed by the other party.
 	 */
 	public synchronized void connectionClosed(Connection con){
-		if(!term) connections.remove(con);
+		if(!term) {
+		    if(serverConnections.contains(con))
+		        serverConnections.remove(con);
+		    else {
+		        clientConnections.remove(con);
+		    }
+		 }
 	}
 	
 	/*
@@ -435,7 +371,7 @@ private boolean processLockAllowed(Connection con, String message) {
 	public synchronized Connection incomingConnection(Socket s) throws IOException{
 		log.debug("incomming connection: "+Settings.socketAddress(s));
 		Connection c = new Connection(s);
-		connections.add(c);
+		clientConnections.add(c);
 		return c;
 		
 	}
@@ -446,14 +382,26 @@ private boolean processLockAllowed(Connection con, String message) {
 	public synchronized Connection outgoingConnection(Socket s) throws IOException{
 		log.debug("outgoing connection: "+Settings.socketAddress(s));
 		Connection c = new Connection(s);
-		connections.add(c);
+		serverConnections.add(c);
+		sendAuthenticate(c, Settings.getSecret());
+		doActivity();
 		return c;
 		
 	}
 	
+	   private void sendAuthenticate(Connection con, String sec) {
+	        JSONObject js = new JSONObject();
+	        js.put("command","AUTHENTICATE");
+	        js.put("secret", sec);
+	        con.writeMsg(js.toJSONString());
+	        log.info("Sent authentication information");
+	    }
+	
+	
 	@Override
 	public void run(){
 		log.info("using activity interval of "+Settings.getActivityInterval()+" milliseconds");
+		log.debug(Settings.getLocalHostname());
 		while(!term){
 			// do something with 5 second intervals in between
 			try {
@@ -468,23 +416,54 @@ private boolean processLockAllowed(Connection con, String message) {
 			}
 			
 		}
-		log.info("closing "+connections.size()+" connections");
+		log.info("closing "+clientConnections.size()+" client connections");
+		log.info("closing "+serverConnections.size()+" server connections");
 		// clean up
-		for(Connection connection : connections){
+		for(Connection connection : clientConnections){
 			connection.closeCon();
 		}
+		for(Connection connection : serverConnections){
+            connection.closeCon();
+        }
 		listener.setTerm(true);
 	}
 	
 	public boolean doActivity(){
+	    JSONObject js = new JSONObject();
+	    js.put("command", "SERVER_ANNOUNCE");
+	    js.put("id", id);
+	    js.put("load", clientConnections.size());
+	    js.put("hostname", Settings.getLocalHostname());
+	    js.put("port", Settings.getLocalPort());
+	    String serverAnnouninfo = js.toJSONString();
+	    broadcastToOtherServer(null, serverAnnouninfo);
+	    log.info("Sever announcement sent");
 		return false;
 	}
+	
+	public void broadcastToOtherServer(Connection con, String str) {
+	    for(Connection connection: serverConnections) {
+	        if(!connection.equals(con))
+	            connection.writeMsg(str);
+	    }
+	    }
+	
+	
+	public void broadcastToAllClient(String str) {
+	    for(Connection con: clientConnections) {
+	        con.writeMsg(str);
+	    }
+	}	
 	
 	public final void setTerm(boolean t){
 		term=t;
 	}
 	
-	public final ArrayList<Connection> getConnections() {
-		return connections;
+	public final ArrayList<Connection> getClintConnections() {
+		return clientConnections;
 	}
+	
+	public final ArrayList<Connection> getServerConnections() {
+        return serverConnections;
+    }
 }

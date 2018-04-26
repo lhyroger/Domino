@@ -18,6 +18,9 @@ import activitystreamer.util.Settings;
 
 public class Server {
 	private static final Logger log = LogManager.getLogger();
+
+	
+//	test 
 	private static void help(Options options){
 		String header = "An ActivityStream Server for Unimelb COMP90015\n\n";
 		String footer = "\ncontact aharwood@unimelb.edu.au for issues.";
@@ -100,7 +103,8 @@ public class Server {
 		log.info("starting server");
 		
 		
-		final Control c = Control.getInstance(); 
+		final Control c = Control.getInstance();
+		c.start();
 		// the following shutdown hook doesn't really work, it doesn't give us enough time to
 		// cleanup all of our connections before the jvm is terminated.
 		Runtime.getRuntime().addShutdownHook(new Thread() {

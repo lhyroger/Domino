@@ -24,6 +24,7 @@ public class Connection extends Thread {
 	private boolean open = false;
 	private Socket socket;
 	private boolean term=false;
+
 	
 	Connection(Socket socket) throws IOException{
 		in = new DataInputStream(socket.getInputStream());
