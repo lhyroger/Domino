@@ -22,7 +22,7 @@ public class Client {
 		HelpFormatter formatter = new HelpFormatter();
 		formatter.printHelp("ActivityStreamer.Client", header, options, footer, true);
 		System.exit(-1);
-	}
+	}//test
 	
 	public static void main(String[] args) {
 		

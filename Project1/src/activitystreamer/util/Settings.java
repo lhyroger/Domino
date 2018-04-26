@@ -15,8 +15,12 @@ public class Settings {
 	private static String remoteHostname = null;
 	private static int remotePort = 3780;
 	private static int activityInterval = 5000; // milliseconds
+
+	private static String username = "anonymous";
+
 	private static String secret = null;
 	private static String username = "anonymous";
+
 
 	
 	public static int getLocalPort() {
@@ -95,6 +99,14 @@ public class Settings {
 	public static String nextSecret() {
 	    return new BigInteger(130, random).toString(32);
 	 }
+	
+	public static int getRemoteload() {
+        return remoteload;
+    }
+
+    public  static void setRemoteload(int load) {
+        Settings.remoteload = load;
+    }
 
 
 
