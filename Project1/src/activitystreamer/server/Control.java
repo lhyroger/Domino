@@ -18,15 +18,15 @@ import activitystreamer.util.Settings;
 
 public class Control extends Thread {
 	private static final Logger log = LogManager.getLogger();
-	private static ArrayList<Connection> clientConnections = new ArrayList<Connection>();
-	private static ArrayList<Connection> serverConnections = new ArrayList<Connection>();
+	private static ArrayList<Connection> clientConnections;
+	private static ArrayList<Connection> serverConnections;
 	//created users interface that is not functional, maybe use other method?
-	private static HashMap<String, String> registeredUser = new HashMap<String, String>();
+	private static HashMap<String, String> registeredUser;
 	private static final String ServerSECRET = "fmnmpp3ai91qb3gc2bvs14g3ue";
 	private static boolean term=false;
 	private static Listener listener;
 	private String id;
-	private static ArrayList<String> serverAnnounceInfo = new ArrayList<String>();
+	private static ArrayList<String> serverAnnounceInfo;
 
 	
 	protected static Control control = null;
@@ -39,6 +39,10 @@ public class Control extends Thread {
 	}
 	
 	public Control() {
+		clientConnections = new ArrayList<Connection>();
+		serverConnections = new ArrayList<Connection>();
+		registeredUser = new HashMap<String, String>();
+		serverAnnounceInfo = new ArrayList<String>();
 		// initialize the connections array
 		id = Settings.nextSecret();
 		if(Settings.getRemoteHostname() == null) {
