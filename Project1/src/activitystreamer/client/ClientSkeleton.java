@@ -54,7 +54,25 @@ public class ClientSkeleton extends Thread {
 	//sent from textFrame
 	public void sendActivityObject(JSONObject activityObj){
 		String msg;
-		msg = activityObj.toString();
+		String cmd = getCommand(activityObj.toJSONString());
+		if (cmd == "LOGOUT") {
+			msg = activityObj.toJSONString();
+		}else {
+			JSONObject json = activityObj;
+			JSONObject js = new JSONObject();
+			String username = Settings.getUsername();
+			String secret = Settings.getSecret();
+			if (json.containsKey("authenticated_user")) {
+				json.replace("authenticated_user", username);
+			}
+			json.put("authenticated_user", username);
+			js.put("command", "ACTIVITY_MESSAGE");
+			js.put("username", username);
+			js.put("secret", secret);
+			js.put("activity", json);
+			msg = js.toJSONString();
+			
+		}
 		sendMessage(msg);
 	}
 	
@@ -74,13 +92,15 @@ public class ClientSkeleton extends Thread {
 	}
 	
 	private void sendMessage(String cmd) {
-		if (cmd == "LOGOUT") {
-			writer.println("You are logged out!");
+		if (getCommand(cmd)=="LOGOUT" || cmd == "LOGOUT") {
+			writer.println(cmd);
+			closeSocket();
+			System.exit(-1);
 			
-		}else {//placeholder
+		}else {
 			
 			writer.println(cmd);
-			//printTextFrame(cmd);			
+					
 		}
 	}
 	
@@ -111,6 +131,9 @@ public class ClientSkeleton extends Thread {
 			String response;
 			try {
 				response = reader.readLine();
+			} catch (ConnectException|NullPointerException e) {
+//				log.error("Connection Failure: " + e + " Disconnecting...");
+				break;
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				log.error("Cannot read response");
@@ -123,12 +146,12 @@ public class ClientSkeleton extends Thread {
 		
 	}
 
-	
+	//
 	private void processResponse(String response) {
 		boolean hasError = true;
 		String cmd = getCommand(response);
 		switch (cmd){
-			case "INVALID.MESSAGE":
+			case "INVALID_MESSAGE":
 				printTextFrame(response);
 				break;
 			case "AUTHTENTICATION_FAIL":
