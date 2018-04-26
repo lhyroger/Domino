@@ -359,7 +359,13 @@ private boolean processLockAllowed(Connection con, String message) {
 				//has the username
 				if (registeredUser.containsKey(username)) {
 					if (registeredUser.get(username).equals(secret)) {
-						sendLoginSuccess(con, username);						return redirect(con);
+						if (!clientConnections.contains(con)) {
+							sendLoginSuccess(con, username);						
+							return redirect(con);
+						}else {
+							sendLoginFailed(con, "user " + username + " already connected to the server. Please logout first.");
+							return true;
+						}
 					}else {
 						sendLoginFailed(con, "attempt to login with wrong secret");
 						return true;
