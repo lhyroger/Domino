@@ -16,7 +16,7 @@ public class Settings {
 	private static int remotePort = 3780;
 	private static int activityInterval = 5000; // milliseconds
 	private static String secret = null;
-	private static String username = "anonymous2";
+	private static String username = "anonymous";
 
 	
 	public static int getLocalPort() {

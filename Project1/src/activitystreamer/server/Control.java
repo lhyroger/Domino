@@ -31,6 +31,7 @@ public class Control extends Thread {
 	private int count;
 	private String pendingRegisterUser;
 	private Connection pendingClientConnection;
+	private HashMap<String, Connection> queue;
 	
 	protected static Control control = null;
 	
@@ -51,6 +52,7 @@ public class Control extends Thread {
 		pendingRegisterUser = null;
 		count = 0;
 		pendingClientConnection = null;
+		queue = new HashMap<String, Connection>();
 		// start a listener
 		try {
 			listener = new Listener();
@@ -135,7 +137,8 @@ private boolean processLockAllowed(Connection con, String message) {
 		if (pendingRegisterUser.equals(username) && count >0) {
 			count--;
 		}else if (count == 0) {
-			sendRegisterSuccess(con, "register success for " + username);
+			sendRegisterSuccess(con, "register success for " + username + " with secret: " + secret);
+			startQueue();
 		}
 		sendLockAllowed(con, username, secret);
 	}else {
@@ -143,6 +146,19 @@ private boolean processLockAllowed(Connection con, String message) {
 		return true;
 	}
 	return false;
+}
+
+	private void startQueue() {
+		if (!queue.isEmpty()) {
+			count = serverAnnounceInfo.size();
+			String temp = (String) queue.keySet().toArray()[0];
+			pendingClientConnection = queue.get(temp);
+			JSONObject jstemp = toJson(pendingClientConnection, temp);
+			pendingRegisterUser = (String) jstemp.get("username");
+			String sct = (String) jstemp.get("secret");
+			sendLockRequest(pendingClientConnection, pendingRegisterUser, sct);
+		}
+	
 }
 
 	private boolean processAuthtenticationFail(Connection con, String message) {
@@ -175,6 +191,8 @@ private boolean processLockAllowed(Connection con, String message) {
 				connectionClosed(pendingClientConnection);
 				pendingClientConnection = null;
 				pendingRegisterUser = null;
+				startQueue();
+				
 			}
 			sendLockDenied(con, username, secret);
 		}else {
@@ -199,7 +217,6 @@ private boolean processLockAllowed(Connection con, String message) {
 				sendLockDenied(con, username, secret);
 				return true;
 			}else {
-				registeredUser.put(username,secret);
 				sendLockAllowed(con, username, secret);
 			}
 		}else {
@@ -258,10 +275,14 @@ private boolean processLockAllowed(Connection con, String message) {
 					return false;
 				}else {
 					registeredUser.put(username, secret);
+					if (count > 0) {
+						queue.put(message, con);
+					}
 					count = serverConnections.size();
 					pendingRegisterUser = username;
-					sendLockRequest(con, username, secret);
 					pendingClientConnection = con;
+					sendLockRequest(con, username, secret);
+					
 				}
 			}
 		}else {
