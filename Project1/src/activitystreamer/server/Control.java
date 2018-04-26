@@ -3,6 +3,7 @@ package activitystreamer.server;
 import java.io.IOException;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,9 +22,10 @@ public class Control extends Thread {
 	private static ArrayList<Connection> clientConnections;
 	private static ArrayList<Connection> serverConnections;
 	//created users interface that is not functional, maybe use other method?
-	private static ArrayList<String> registeredUser;
+	//private static ArrayList<String> registeredUser;
+	private static HashMap<String,String> registeredUser;	
 	private static ArrayList<String> serverAnnounceInfo;
-	private static final String SECRET = "fmnmpp3ai91qb3gc2bvs14g3ue";
+	//private static final String SECRET = "fmnmpp3ai91qb3gc2bvs14g3ue";
 	private static boolean term=false;
 	private static Listener listener;
 	private int count;
@@ -42,6 +44,13 @@ public class Control extends Thread {
 	public Control() {
 		// initialize the connections array
 		connections = new ArrayList<Connection>();
+		clientConnections = new ArrayList<Connection>();
+		serverConnections = new ArrayList<Connection>();
+		registeredUser = new HashMap<String,String>();
+		serverAnnounceInfo = new ArrayList<String>();
+		pendingRegisterUser = null;
+		count = 0;
+		pendingClientConnection = null;
 		// start a listener
 		try {
 			listener = new Listener();
@@ -123,7 +132,7 @@ private boolean processLockAllowed(Connection con, String message) {
 		String secret = (String) json.get("secret");
 		
 		
-		if (pendingRegisterUser == username && count >0) {
+		if (pendingRegisterUser.equals(username) && count >0) {
 			count--;
 		}else if (count == 0) {
 			sendRegisterSuccess(con, "register success for " + username);
@@ -150,11 +159,16 @@ private boolean processLockAllowed(Connection con, String message) {
 		if (json.containsKey("username") && json.containsKey("secret")) {
 			String username = (String) json.get("username");
 			String secret = (String) json.get("secret");
-			if (registeredUser.contains(username) && secret == SECRET) {
-				registeredUser.remove(username);
+			if (registeredUser.containsKey(username)) {
+				if (registeredUser.get(username).equals(secret)) {
+					registeredUser.remove(username);
+				}
 			}
+//			if (registeredUser.contains(username) && secret.equals(SECRET)) {
+//				registeredUser.remove(username);
+//			}
 			
-			if (pendingRegisterUser == username && count >0) {
+			if (pendingRegisterUser.equals(username) && count >0) {
 				count = 0;
 				sendRegisterFailed(pendingClientConnection,"the username already exist");
 				pendingClientConnection.closeCon();
@@ -181,11 +195,11 @@ private boolean processLockAllowed(Connection con, String message) {
 		if (json.containsKey("username") && json.containsKey("secret")) {
 			String username = (String) json.get("username");
 			String secret = (String) json.get("secret");
-			if (registeredUser.contains(username)) {
+			if (registeredUser.containsKey(username)) {
 				sendLockDenied(con, username, secret);
 				return true;
 			}else {
-				registeredUser.add(username);
+				registeredUser.put(username,secret);
 				sendLockAllowed(con, username, secret);
 			}
 		}else {
@@ -234,16 +248,16 @@ private boolean processLockAllowed(Connection con, String message) {
 			if (clientConnections.contains(con)) {
 				sendInvalidMessage(con, "the user has already registered");
 			}
-			if (registeredUser.contains(username)) {
+			if (registeredUser.containsKey(username)) {
 				sendRegisterFailed(con, username + " is already registered with the system");
 				return true;
 			}else {
 				if (serverConnections.size()==0) {
-					registeredUser.add(username);
-					sendRegisterSuccess(con, "register success for " + username);
+					registeredUser.put(username, secret);
+					sendRegisterSuccess(con, "register success for " + username + " with secret: " + secret);
 					return false;
 				}else {
-					registeredUser.add(username);
+					registeredUser.put(username, secret);
 					count = serverConnections.size();
 					pendingRegisterUser = username;
 					sendLockRequest(con, username, secret);
@@ -322,10 +336,9 @@ private boolean processLockAllowed(Connection con, String message) {
 			//login as user
 			}else {
 				//has the username
-				if (registeredUser.contains(username)) {
-					if (secret.equals(SECRET)) {
-						sendLoginSuccess(con, username);
-						return redirect(con);
+				if (registeredUser.containsKey(username)) {
+					if (registeredUser.get(username).equals(secret)) {
+						sendLoginSuccess(con, username);						return redirect(con);
 					}else {
 						sendLoginFailed(con, "attempt to login with wrong secret");
 						return true;
@@ -404,6 +417,7 @@ private boolean processLockAllowed(Connection con, String message) {
 		} catch (ParseException e) {
 			log.error("Cannot parser the message");
 			sendInvalidMessage(con, "JSON parse error while parsing message");
+			con.closeCon();
 		}
 		return json;
 	}

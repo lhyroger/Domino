@@ -78,7 +78,7 @@ public class ClientSkeleton extends Thread {
 	
 	
 	public void disconnect(){
-		sendMessage("LOGOUT");
+		sendMessage("{\"command\":\"LOGOUT\"}");
 		closeSocket();
 		System.exit(-1);
 	}
@@ -92,7 +92,7 @@ public class ClientSkeleton extends Thread {
 	}
 	
 	private void sendMessage(String cmd) {
-		if (getCommand(cmd)=="LOGOUT" || cmd == "LOGOUT") {
+		if (getCommand(cmd)=="LOGOUT") {
 			writer.println(cmd);
 			closeSocket();
 			System.exit(-1);
@@ -132,11 +132,10 @@ public class ClientSkeleton extends Thread {
 			try {
 				response = reader.readLine();
 			} catch (ConnectException|NullPointerException e) {
-//				log.error("Connection Failure: " + e + " Disconnecting...");
+				log.error("Connection Failure: " + e + " Disconnecting...");
 				break;
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				log.error("Cannot read response");
+				
 				break;
 			}
 			//log.info(response);
@@ -187,7 +186,7 @@ public class ClientSkeleton extends Thread {
 		}
 		if (hasError) {
 			closeSocket();
-			System.exit(-1);
+			//System.exit(-1);
 		}
 	}
 	
@@ -260,7 +259,7 @@ public class ClientSkeleton extends Thread {
 		JSONObject json = new JSONObject();
 		json.put("command", "REGISTER");
 		json.put("username", username);
-		json.put("secret", SECRET);
+		json.put("secret", Settings.nextSecret());
 		sendMessage(json.toJSONString());
 	}
 
