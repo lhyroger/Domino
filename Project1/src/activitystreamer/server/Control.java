@@ -27,6 +27,10 @@ public class Control extends Thread {
 	private static Listener listener;
 	private String id;
 	private static ArrayList<String> serverAnnounceInfo;
+	private int count;
+	private String pendingRegisterUser;
+	private Connection pendingClientConnection;
+	private HashMap<String, Connection> queue;
 
 	
 	protected static Control control = null;
@@ -43,6 +47,7 @@ public class Control extends Thread {
 		serverConnections = new ArrayList<Connection>();
 		registeredUser = new HashMap<String, String>();
 		serverAnnounceInfo = new ArrayList<String>();
+
 		// initialize the connections array
 		id = Settings.nextSecret();
 		if(Settings.getRemoteHostname() == null) {
@@ -51,6 +56,12 @@ public class Control extends Thread {
 		else {
 		    initiateConnection();
 		}
+
+		pendingRegisterUser = null;
+		count = 0;
+		pendingClientConnection = null;
+		queue = new HashMap<String, Connection>();
+
 		// start a listener
 		try {
 			listener = new Listener();
@@ -121,18 +132,145 @@ public class Control extends Thread {
 		return hasError;
 	}
 	
-	private boolean processLockDenied(Connection con, String message) {
+
+private boolean processLockAllowed(Connection con, String message) {
+	if (!serverConnections.contains(con)) {
+		sendInvalidMessage(con, "Connection is not authenticated by server");
+		return true;
+	}
+	JSONObject json = toJson(con, message);
+	if (json.containsKey("username") && json.containsKey("secret")) {
+		String username = (String) json.get("username");
+		String secret = (String) json.get("secret");
+		
+		
+		if (pendingRegisterUser.equals(username) && count >0) {
+			count--;
+		}else if (count == 0) {
+			sendRegisterSuccess(con, "register success for " + username + " with secret: " + secret);
+			startQueue();
+		}
+		sendLockAllowed(con, username, secret);
+	}else {
+		sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
+		return true;
+	}
+	return false;
+}
+
+	private void startQueue() {
+		if (!queue.isEmpty()) {
+			count = serverAnnounceInfo.size();
+			String temp = (String) queue.keySet().toArray()[0];
+			pendingClientConnection = queue.get(temp);
+			JSONObject jstemp = toJson(pendingClientConnection, temp);
+			pendingRegisterUser = (String) jstemp.get("username");
+			String sct = (String) jstemp.get("secret");
+			sendLockRequest(pendingClientConnection, pendingRegisterUser, sct);
+		}
+	
+}
+
+	private boolean processAuthtenticationFail(Connection con, String message) {
 		// TODO Auto-generated method stub
+		return false;
+	}
+
+	private boolean processLockDenied(Connection con, String message) {
+		if (!serverConnections.contains(con)) {
+			sendInvalidMessage(con, "Connection is not authenticated by server");
+			return true;
+		}
+		JSONObject json = toJson(con, message);
+		if (json.containsKey("username") && json.containsKey("secret")) {
+			String username = (String) json.get("username");
+			String secret = (String) json.get("secret");
+			if (registeredUser.containsKey(username)) {
+				if (registeredUser.get(username).equals(secret)) {
+					registeredUser.remove(username);
+				}
+			}
+//			if (registeredUser.contains(username) && secret.equals(SECRET)) {
+//				registeredUser.remove(username);
+//			}
+			
+			if (pendingRegisterUser.equals(username) && count >0) {
+				count = 0;
+				sendRegisterFailed(pendingClientConnection,"the username already exist");
+				pendingClientConnection.closeCon();
+				connectionClosed(pendingClientConnection);
+				pendingClientConnection = null;
+				pendingRegisterUser = null;
+				startQueue();
+				
+			}
+			sendLockDenied(con, username, secret);
+		}else {
+			sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
+			return true;
+		}
+		
 		return false;
 	}
 
 	private boolean processLockRequest(Connection con, String message) {
-		// TODO Auto-generated method stub
+
+		if (!serverConnections.contains(con)) {
+			sendInvalidMessage(con, "Connection is not authenticated by server");
+			return true;
+		}
+		JSONObject json = toJson(con, message);
+		if (json.containsKey("username") && json.containsKey("secret")) {
+			String username = (String) json.get("username");
+			String secret = (String) json.get("secret");
+			if (registeredUser.containsKey(username)) {
+				sendLockDenied(con, username, secret);
+				return true;
+			}else {
+				sendLockAllowed(con, username, secret);
+			}
+		}else {
+			sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
+			return true;
+		}
+		
+
 		return false;
 	}
 
 	private boolean processRegister(Connection con, String message) {
-		// TODO Auto-generated method stub
+
+		JSONObject json = toJson(con, message);
+		if (json.containsKey("username") && json.containsKey("secret")) {
+			String username = (String) json.get("username");
+			String secret = (String) json.get("secret");
+			if (clientConnections.contains(con)) {
+				sendInvalidMessage(con, "the user has already registered");
+			}
+			if (registeredUser.containsKey(username)) {
+				sendRegisterFailed(con, username + " is already registered with the system");
+				return true;
+			}else {
+				if (serverConnections.size()==0) {
+					registeredUser.put(username, secret);
+					sendRegisterSuccess(con, "register success for " + username + " with secret: " + secret);
+					return false;
+				}else {
+					registeredUser.put(username, secret);
+					if (count > 0) {
+						queue.put(message, con);
+					}
+					count = serverConnections.size();
+					pendingRegisterUser = username;
+					pendingClientConnection = con;
+					sendLockRequest(con, username, secret);
+					
+				}
+			}
+		}else {
+			sendInvalidMessage(con, "the recived message did not contain all nesessary key value.");
+			return true;
+		}
 		return false;
 	}
 
@@ -246,7 +384,15 @@ public class Control extends Thread {
 				//has the username
 				if (registeredUser.containsKey(username)) {
 					if (registeredUser.get(username).equals(secret)) {
-						sendLoginSuccess(con, username);
+
+						if (!clientConnections.contains(con)) {
+							sendLoginSuccess(con, username);						
+							return redirect(con);
+						}else {
+							sendLoginFailed(con, "user " + username + " already connected to the server. Please logout first.");
+							return true;
+						}
+
 					}else {
 						sendLoginFailed(con, "attempt to login with wrong secret");
 						return true;
